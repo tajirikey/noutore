@@ -5,8 +5,6 @@
  * to public/model/ for use in the browser with TensorFlow.js.
  *
  * Usage: node scripts/train-model.mjs
- *
- * Requirements: @tensorflow/tfjs (uses pure JS, no native deps needed)
  */
 
 import * as tf from "@tensorflow/tfjs";
@@ -18,34 +16,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MODEL_DIR = join(__dirname, "..", "public", "model");
 
 // ============================================================
-// Inline MNIST-like data generator
-// Since we can't easily download MNIST in this environment,
-// we generate synthetic training data that mimics handwritten digits.
-// Each digit is rendered on a 28x28 grid with random variations.
+// Multiple digit pattern variants per digit for more variation
 // ============================================================
 
-function createDigitPattern(digit) {
-  // Return a 28x28 array representing a digit pattern
-  const grid = Array.from({ length: 28 }, () => new Float32Array(28));
+function createDigitPatterns(digit) {
+  const patterns = [];
 
-  // Helper to draw a line on the grid
-  function drawLine(x1, y1, x2, y2, thickness = 2) {
-    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1), 1) * 2;
+  function makeGrid() {
+    return Array.from({ length: 28 }, () => new Float32Array(28));
+  }
+
+  function drawLine(grid, x1, y1, x2, y2, thickness = 2.0) {
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1), 1) * 3;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      const x = Math.round(x1 + (x2 - x1) * t);
-      const y = Math.round(y1 + (y2 - y1) * t);
-      for (let dy = -thickness; dy <= thickness; dy++) {
-        for (let dx = -thickness; dx <= thickness; dx++) {
-          const px = x + dx;
-          const py = y + dy;
+      const x = x1 + (x2 - x1) * t;
+      const y = y1 + (y2 - y1) * t;
+      for (let dy = -Math.ceil(thickness); dy <= Math.ceil(thickness); dy++) {
+        for (let dx = -Math.ceil(thickness); dx <= Math.ceil(thickness); dx++) {
+          const px = Math.round(x + dx);
+          const py = Math.round(y + dy);
           if (px >= 0 && px < 28 && py >= 0 && py < 28) {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist <= thickness) {
-              grid[py][px] = Math.max(
-                grid[py][px],
-                1.0 - dist / (thickness + 1)
-              );
+              grid[py][px] = Math.max(grid[py][px], 1.0 - dist / (thickness + 0.5));
             }
           }
         }
@@ -53,25 +47,21 @@ function createDigitPattern(digit) {
     }
   }
 
-  // Helper to draw an arc
-  function drawArc(cx, cy, rx, ry, startAngle, endAngle, thickness = 2) {
-    const steps = 60;
+  function drawArc(grid, cx, cy, rx, ry, startAngle, endAngle, thickness = 2.0) {
+    const steps = 80;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
       const angle = startAngle + (endAngle - startAngle) * t;
       const x = cx + rx * Math.cos(angle);
       const y = cy + ry * Math.sin(angle);
-      for (let dy = -thickness; dy <= thickness; dy++) {
-        for (let dx = -thickness; dx <= thickness; dx++) {
+      for (let dy = -Math.ceil(thickness); dy <= Math.ceil(thickness); dy++) {
+        for (let dx = -Math.ceil(thickness); dx <= Math.ceil(thickness); dx++) {
           const px = Math.round(x + dx);
           const py = Math.round(y + dy);
           if (px >= 0 && px < 28 && py >= 0 && py < 28) {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist <= thickness) {
-              grid[py][px] = Math.max(
-                grid[py][px],
-                1.0 - dist / (thickness + 1)
-              );
+              grid[py][px] = Math.max(grid[py][px], 1.0 - dist / (thickness + 0.5));
             }
           }
         }
@@ -82,110 +72,260 @@ function createDigitPattern(digit) {
   const PI = Math.PI;
 
   switch (digit) {
-    case 0:
-      drawArc(14, 14, 7, 10, 0, 2 * PI);
+    case 0: {
+      // Variant 1: tall oval
+      let g = makeGrid();
+      drawArc(g, 14, 14, 6, 10, 0, 2 * PI);
+      patterns.push(g);
+      // Variant 2: round circle
+      g = makeGrid();
+      drawArc(g, 14, 14, 8, 8, 0, 2 * PI);
+      patterns.push(g);
+      // Variant 3: slightly open at top
+      g = makeGrid();
+      drawArc(g, 14, 14, 7, 10, 0.3, 2 * PI - 0.1);
+      patterns.push(g);
       break;
-    case 1:
-      drawLine(14, 4, 14, 24);
-      drawLine(10, 8, 14, 4);
-      drawLine(10, 24, 18, 24);
+    }
+    case 1: {
+      // Variant 1: simple vertical line
+      let g = makeGrid();
+      drawLine(g, 14, 4, 14, 24);
+      patterns.push(g);
+      // Variant 2: with serif and top hook
+      g = makeGrid();
+      drawLine(g, 14, 4, 14, 24);
+      drawLine(g, 10, 8, 14, 4);
+      drawLine(g, 10, 24, 18, 24);
+      patterns.push(g);
+      // Variant 3: slightly slanted
+      g = makeGrid();
+      drawLine(g, 13, 4, 15, 24);
+      patterns.push(g);
       break;
-    case 2:
-      drawArc(14, 10, 6, 5, PI, 0);
-      drawLine(20, 10, 8, 24);
-      drawLine(8, 24, 20, 24);
+    }
+    case 2: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawArc(g, 14, 10, 6, 6, PI * 1.1, PI * 0.1);
+      drawLine(g, 20, 12, 8, 24);
+      drawLine(g, 8, 24, 20, 24);
+      patterns.push(g);
+      // Variant 2: more curved
+      g = makeGrid();
+      drawArc(g, 14, 9, 7, 6, PI * 1.2, PI * -0.1);
+      drawArc(g, 14, 20, 10, 6, PI * 1.3, PI);
+      drawLine(g, 7, 24, 21, 24);
+      patterns.push(g);
       break;
-    case 3:
-      drawArc(14, 10, 6, 5, PI * 1.2, PI * -0.2);
-      drawArc(14, 18, 6, 5, PI * 1.2, PI * -0.2);
+    }
+    case 3: {
+      // Variant 1: two bumps
+      let g = makeGrid();
+      drawArc(g, 14, 9, 6, 6, PI * 1.3, PI * -0.3);
+      drawArc(g, 14, 19, 6, 6, PI * 1.3, PI * -0.3);
+      patterns.push(g);
+      // Variant 2: flat top, rounded bottom
+      g = makeGrid();
+      drawLine(g, 8, 4, 18, 4);
+      drawLine(g, 18, 4, 12, 13);
+      drawArc(g, 14, 19, 7, 7, PI * 1.3, PI * -0.2);
+      patterns.push(g);
       break;
-    case 4:
-      drawLine(18, 4, 6, 17);
-      drawLine(6, 17, 22, 17);
-      drawLine(18, 4, 18, 24);
+    }
+    case 4: {
+      // Variant 1: closed top
+      let g = makeGrid();
+      drawLine(g, 18, 4, 6, 17);
+      drawLine(g, 6, 17, 22, 17);
+      drawLine(g, 18, 4, 18, 24);
+      patterns.push(g);
+      // Variant 2: open top
+      g = makeGrid();
+      drawLine(g, 4, 4, 4, 16);
+      drawLine(g, 4, 16, 22, 16);
+      drawLine(g, 16, 4, 16, 24);
+      patterns.push(g);
       break;
-    case 5:
-      drawLine(20, 4, 8, 4);
-      drawLine(8, 4, 8, 13);
-      drawArc(14, 17, 6, 6, -PI * 0.5, PI * 0.8);
-      drawLine(8, 13, 14, 11);
+    }
+    case 5: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawLine(g, 20, 4, 8, 4);
+      drawLine(g, 8, 4, 8, 13);
+      drawArc(g, 13, 18, 7, 7, -PI * 0.4, PI * 0.7);
+      drawLine(g, 8, 13, 13, 12);
+      patterns.push(g);
+      // Variant 2: rounder
+      g = makeGrid();
+      drawLine(g, 20, 4, 8, 4);
+      drawLine(g, 8, 4, 7, 14);
+      drawArc(g, 14, 18, 8, 7, PI * 0.9, PI * -0.3);
+      patterns.push(g);
       break;
-    case 6:
-      drawArc(14, 17, 7, 7, 0, 2 * PI);
-      drawArc(18, 10, 8, 8, PI * 0.5, PI);
+    }
+    case 6: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawArc(g, 14, 18, 7, 7, 0, 2 * PI);
+      drawArc(g, 19, 10, 9, 9, PI * 0.5, PI * 1.1);
+      patterns.push(g);
+      // Variant 2: longer stem
+      g = makeGrid();
+      drawArc(g, 14, 18, 7, 7, 0, 2 * PI);
+      drawLine(g, 7, 18, 14, 4);
+      patterns.push(g);
       break;
-    case 7:
-      drawLine(6, 4, 22, 4);
-      drawLine(22, 4, 12, 24);
+    }
+    case 7: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawLine(g, 6, 4, 22, 4);
+      drawLine(g, 22, 4, 12, 24);
+      patterns.push(g);
+      // Variant 2: with cross bar
+      g = makeGrid();
+      drawLine(g, 6, 4, 22, 4);
+      drawLine(g, 22, 4, 12, 24);
+      drawLine(g, 12, 14, 20, 14);
+      patterns.push(g);
+      // Variant 3: angled differently
+      g = makeGrid();
+      drawLine(g, 6, 4, 22, 4);
+      drawLine(g, 22, 4, 10, 24);
+      patterns.push(g);
       break;
-    case 8:
-      drawArc(14, 10, 5, 5, 0, 2 * PI);
-      drawArc(14, 19, 6, 6, 0, 2 * PI);
+    }
+    case 8: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawArc(g, 14, 9, 6, 6, 0, 2 * PI);
+      drawArc(g, 14, 19, 7, 6, 0, 2 * PI);
+      patterns.push(g);
+      // Variant 2: figure 8
+      g = makeGrid();
+      drawArc(g, 14, 9, 5, 5, 0, 2 * PI);
+      drawArc(g, 14, 19, 6, 6, 0, 2 * PI);
+      patterns.push(g);
       break;
-    case 9:
-      drawArc(14, 10, 7, 7, 0, 2 * PI);
-      drawArc(10, 17, 8, 8, 0, -PI * 0.5);
+    }
+    case 9: {
+      // Variant 1: standard
+      let g = makeGrid();
+      drawArc(g, 14, 10, 7, 7, 0, 2 * PI);
+      drawLine(g, 21, 12, 14, 24);
+      patterns.push(g);
+      // Variant 2: with straight tail
+      g = makeGrid();
+      drawArc(g, 14, 10, 6, 6, 0, 2 * PI);
+      drawLine(g, 20, 12, 20, 24);
+      patterns.push(g);
       break;
+    }
   }
 
-  return grid;
+  return patterns;
 }
 
 function generateSample(digit) {
-  const baseGrid = createDigitPattern(digit);
+  const allPatterns = createDigitPatterns(digit);
+  const baseGrid = allPatterns[Math.floor(Math.random() * allPatterns.length)];
   const result = new Float32Array(28 * 28);
 
-  // Apply random transformations
-  const offsetX = (Math.random() - 0.5) * 4;
-  const offsetY = (Math.random() - 0.5) * 4;
-  const scale = 0.85 + Math.random() * 0.3;
-  const rotation = (Math.random() - 0.5) * 0.3;
-  const thickness = 0.8 + Math.random() * 0.6;
+  // Much larger random transformations for robustness
+  const offsetX = (Math.random() - 0.5) * 6;
+  const offsetY = (Math.random() - 0.5) * 6;
+  const scale = 0.65 + Math.random() * 0.7; // 0.65 to 1.35
+  const rotation = (Math.random() - 0.5) * 0.5; // ±14 degrees
+  const thicknessMul = 0.5 + Math.random() * 1.2; // 0.5 to 1.7
 
-  const cx = 14,
-    cy = 14;
+  // Random shear for more natural variation
+  const shearX = (Math.random() - 0.5) * 0.3;
+  const shearY = (Math.random() - 0.5) * 0.15;
+
+  const cx = 14, cy = 14;
 
   for (let y = 0; y < 28; y++) {
     for (let x = 0; x < 28; x++) {
       // Apply inverse transformation to find source pixel
-      const dx = (x - cx) / scale;
-      const dy = (y - cy) / scale;
+      let dx = (x - cx) / scale;
+      let dy = (y - cy) / scale;
+      // Shear
+      dx -= shearX * dy;
+      dy -= shearY * dx;
+      // Rotate
       const cos = Math.cos(-rotation);
       const sin = Math.sin(-rotation);
-      const srcX = Math.round(cx + dx * cos - dy * sin - offsetX);
-      const srcY = Math.round(cy + dx * sin + dy * cos - offsetY);
+      const srcX = cx + dx * cos - dy * sin - offsetX;
+      const srcY = cy + dx * sin + dy * cos - offsetY;
 
-      if (srcX >= 0 && srcX < 28 && srcY >= 0 && srcY < 28) {
-        let val = baseGrid[srcY][srcX] * thickness;
-        // Add noise
-        val += (Math.random() - 0.5) * 0.1;
-        result[y * 28 + x] = Math.max(0, Math.min(1, val));
+      // Bilinear interpolation
+      const sx = Math.floor(srcX);
+      const sy = Math.floor(srcY);
+      const fx = srcX - sx;
+      const fy = srcY - sy;
+
+      let val = 0;
+      if (sx >= 0 && sx < 27 && sy >= 0 && sy < 27) {
+        val =
+          baseGrid[sy][sx] * (1 - fx) * (1 - fy) +
+          baseGrid[sy][sx + 1] * fx * (1 - fy) +
+          baseGrid[sy + 1][sx] * (1 - fx) * fy +
+          baseGrid[sy + 1][sx + 1] * fx * fy;
+      } else if (sx >= 0 && sx < 28 && sy >= 0 && sy < 28) {
+        val = baseGrid[sy][sx];
       }
+
+      val *= thicknessMul;
+      // Add noise
+      val += (Math.random() - 0.5) * 0.15;
+      result[y * 28 + x] = Math.max(0, Math.min(1, val));
     }
   }
 
-  // Apply slight blur
+  // Apply Gaussian-like blur (3x3 kernel)
   const blurred = new Float32Array(28 * 28);
-  for (let y = 1; y < 27; y++) {
-    for (let x = 1; x < 27; x++) {
-      let sum = 0;
+  const blurAmount = 0.3 + Math.random() * 0.5; // variable blur
+  for (let y = 0; y < 28; y++) {
+    for (let x = 0; x < 28; x++) {
+      if (y === 0 || y === 27 || x === 0 || x === 27) {
+        blurred[y * 28 + x] = result[y * 28 + x];
+        continue;
+      }
+      let center = result[y * 28 + x];
+      let neighbors = 0;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
-          const w = dx === 0 && dy === 0 ? 4 : 1;
-          sum += result[(y + dy) * 28 + (x + dx)] * w;
+          if (dx === 0 && dy === 0) continue;
+          neighbors += result[(y + dy) * 28 + (x + dx)];
         }
       }
-      blurred[y * 28 + x] = sum / 12;
+      blurred[y * 28 + x] = center * (1 - blurAmount) + (neighbors / 8) * blurAmount;
     }
+  }
+
+  // Randomly apply erosion/dilation for thickness variation
+  if (Math.random() < 0.3) {
+    // Dilate: make strokes thicker
+    const dilated = new Float32Array(blurred);
+    for (let y = 1; y < 27; y++) {
+      for (let x = 1; x < 27; x++) {
+        let maxVal = blurred[y * 28 + x];
+        maxVal = Math.max(maxVal, blurred[(y - 1) * 28 + x] * 0.7);
+        maxVal = Math.max(maxVal, blurred[(y + 1) * 28 + x] * 0.7);
+        maxVal = Math.max(maxVal, blurred[y * 28 + x - 1] * 0.7);
+        maxVal = Math.max(maxVal, blurred[y * 28 + x + 1] * 0.7);
+        dilated[y * 28 + x] = maxVal;
+      }
+    }
+    return dilated;
   }
 
   return blurred;
 }
 
 function generateDataset(samplesPerDigit) {
-  console.log(
-    `Generating ${samplesPerDigit * 10} training samples...`
-  );
+  console.log(`Generating ${samplesPerDigit * 10} training samples...`);
   const xs = [];
   const ys = [];
 
@@ -237,7 +377,7 @@ async function trainModel() {
   model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
   model.add(tf.layers.flatten());
   model.add(tf.layers.dense({ units: 64, activation: "relu" }));
-  model.add(tf.layers.dropout({ rate: 0.2 }));
+  model.add(tf.layers.dropout({ rate: 0.3 }));
   model.add(tf.layers.dense({ units: 10, activation: "softmax" }));
 
   model.compile({
@@ -248,16 +388,16 @@ async function trainModel() {
 
   model.summary();
 
-  // Generate training data (synthetic MNIST-like)
-  const SAMPLES_PER_DIGIT = 150;
+  // Generate training data
+  const SAMPLES_PER_DIGIT = 200;
   const { xs: trainXs, ys: trainYs } = generateDataset(SAMPLES_PER_DIGIT);
 
   // Generate validation data
-  const { xs: valXs, ys: valYs } = generateDataset(20);
+  const { xs: valXs, ys: valYs } = generateDataset(30);
 
   console.log("\nTraining model...");
   await model.fit(trainXs, trainYs, {
-    epochs: 10,
+    epochs: 15,
     batchSize: 32,
     validationData: [valXs, valYs],
     callbacks: {
@@ -277,7 +417,6 @@ async function trainModel() {
     `\nFinal validation - loss: ${valLoss.toFixed(4)}, accuracy: ${valAcc.toFixed(4)}`
   );
 
-  // Clean up tensors
   trainXs.dispose();
   trainYs.dispose();
   valXs.dispose();
@@ -291,9 +430,9 @@ async function saveModel(model) {
     mkdirSync(MODEL_DIR, { recursive: true });
   }
 
-  // Manual save: extract model topology and weights, write to files
-  // (Pure @tensorflow/tfjs doesn't have file:// handler)
-  const modelJSON = model.toJSON();
+  // IMPORTANT: model.toJSON() returns a string, but TF.js loadLayersModel
+  // expects modelTopology to be a parsed object
+  const modelTopology = JSON.parse(model.toJSON());
 
   // Get weights
   const weightDataAndSpecs = [];
@@ -322,27 +461,19 @@ async function saveModel(model) {
   const weightView = new Uint8Array(weightBuffer);
   let offset = 0;
 
-  const weightsManifest = [];
   for (const w of weightDataAndSpecs) {
     const bytes = new Uint8Array(w.data.buffer);
     weightView.set(bytes, offset);
-    weightsManifest.push({
-      name: w.name,
-      shape: w.shape,
-      dtype: w.dtype,
-      byteOffset: offset,
-      byteLength: w.data.byteLength,
-    });
     offset += w.data.byteLength;
   }
 
-  // Write model.json
+  // Write model.json with PARSED modelTopology (not string!)
   const modelArtifact = {
-    modelTopology: modelJSON,
+    modelTopology: modelTopology,
     weightsManifest: [
       {
         paths: ["weights.bin"],
-        weights: weightsManifest.map((w) => ({
+        weights: weightDataAndSpecs.map((w) => ({
           name: w.name,
           shape: w.shape,
           dtype: w.dtype,
@@ -353,7 +484,7 @@ async function saveModel(model) {
 
   writeFileSync(
     join(MODEL_DIR, "model.json"),
-    JSON.stringify(modelArtifact, null, 2)
+    JSON.stringify(modelArtifact)
   );
   writeFileSync(
     join(MODEL_DIR, "weights.bin"),
@@ -361,7 +492,7 @@ async function saveModel(model) {
   );
 
   console.log(`\nModel saved to ${MODEL_DIR}`);
-  console.log(`  model.json: ${JSON.stringify(modelArtifact).length} bytes`);
+  console.log(`  model.json: topology is object type = ${typeof modelArtifact.modelTopology}`);
   console.log(`  weights.bin: ${totalBytes} bytes`);
 }
 
